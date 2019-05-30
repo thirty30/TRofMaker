@@ -1,0 +1,1 @@
+1.The IDE of Author is VsCode, so the vscode's config files save in .vscode floder, if your IDE is not VsCode, ignore it
