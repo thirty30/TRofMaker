@@ -3,33 +3,114 @@ package main
 import (
 	xlsx "libxlsx"
 	"strconv"
+	"strings"
 )
 
-type sMaker struct {
-	XlsxPath    string          //xlsx路径
-	XlsxName    string          //xlsx文件名
-	RofName     string          //rof文件名
-	ColHeadList []*sColHeadInfo //列头信息
-	File        *xlsx.File
+type sExcelBuilder struct {
+	mPath     string          //目标路径
+	mIsFolder bool            //是否是文件夹路径
+	mTypeMap  map[string]bool //预制类型
 }
 
-func (pOwn *sMaker) process() bool {
-	if pOwn.preprocessTableHead() == false {
+func (pOwn *sExcelBuilder) getCommandDesc() string {
+	return "-xlsx [path] or [file]. necessary command, analysis excel files. need a floder or a file path"
+}
+
+func (pOwn *sExcelBuilder) init(aCmdParm []string) bool {
+	if len(aCmdParm) != 1 {
+		logErr("the command -xlsx needs 1 (only 1) argument, a floder or a file path.")
 		return false
 	}
-	if pOwn.preprocessContent() == false {
-		return false
+	pOwn.mPath = aCmdParm[0]
+
+	//单个文件
+	if len(pOwn.mPath) >= 6 && pOwn.mPath[len(pOwn.mPath)-5:] == ".xlsx" {
+		pOwn.mIsFolder = false
+		tStr := strings.Split(pOwn.mPath, "/")
+		fileName := tStr[len(tStr)-1]
+		dir := strings.Replace(pOwn.mPath, fileName, "", 1)
+
+		pInfo := new(sTableInfo)
+		pInfo.Dir = dir
+		pInfo.FileName = fileName
+		pInfo.RelativeDir = ""
+		gTables = append(gTables, pInfo)
+
+	} else {
+		pOwn.mIsFolder = true
+
+		if pOwn.mPath[len(pOwn.mPath)-1] != '/' {
+			pOwn.mPath += "/"
+		}
+
+		//解析待生成的文件的列表
+		if analysisFileList(pOwn.mPath) == false {
+			return false
+		}
 	}
-	if pOwn.doProcess() == false {
-		return false
+
+	//填充表结构信息
+	for _, v := range gTables {
+		strXlsxFileName := v.Dir + v.FileName
+		pFile, err := xlsx.OpenFile(strXlsxFileName)
+		if err != nil {
+			logErr("open xlsx file error:%s, file: %s", err.Error(), strXlsxFileName)
+			return false
+		}
+		pSheet := pFile.Sheets[0]
+		rofName := "Rof" + pSheet.Name
+
+		//判断表名是否重复
+		isRepeat, srcPath := isRofNameRepeated(rofName)
+		if isRepeat == true {
+			logErr("repetitive table name: %s, %s is same as %s", rofName, strXlsxFileName, srcPath)
+			return false
+		}
+
+		v.RofName = rofName
+		v.File = pFile
+		if pOwn.mIsFolder == true {
+			v.RelativeDir = strings.Replace(v.Dir, pOwn.mPath, "", 1)
+		}
+	}
+
+	pOwn.mTypeMap = make(map[string]bool)
+	pOwn.mTypeMap["int32"] = true
+	pOwn.mTypeMap["int64"] = true
+	pOwn.mTypeMap["float32"] = true
+	pOwn.mTypeMap["float64"] = true
+	pOwn.mTypeMap["string"] = true
+	pOwn.mTypeMap["object"] = true
+	pOwn.mTypeMap["[]int32"] = true
+	pOwn.mTypeMap["[]int64"] = true
+	pOwn.mTypeMap["[]float32"] = true
+	pOwn.mTypeMap["[]float64"] = true
+	pOwn.mTypeMap["[]string"] = true
+	pOwn.mTypeMap["[]nnkv"] = true
+	pOwn.mTypeMap["[]nskv"] = true
+	pOwn.mTypeMap["[]snkv"] = true
+	pOwn.mTypeMap["[]sskv"] = true
+
+	return true
+}
+
+func (pOwn *sExcelBuilder) build() bool {
+	for _, v := range gTables {
+		if pOwn.preprocessTableHead(v) == false {
+			return false
+		}
+
+		if pOwn.preprocessContent(v) == false {
+			return false
+		}
 	}
 	return true
 }
 
 //预处理表头
-func (pOwn *sMaker) preprocessTableHead() bool {
-	strXlsxName := pOwn.XlsxPath + pOwn.XlsxName
-	pSheet := pOwn.File.Sheets[0]
+func (pOwn *sExcelBuilder) preprocessTableHead(aInfo *sTableInfo) bool {
+	strXlsxName := aInfo.Dir + aInfo.FileName
+	pSheet := aInfo.File.Sheets[0]
 	pFlagRow := pSheet.Rows[0]
 	pNameRow := pSheet.Rows[1]
 	pTypeRow := pSheet.Rows[2]
@@ -41,7 +122,7 @@ func (pOwn *sMaker) preprocessTableHead() bool {
 	}
 
 	//得到真实的列
-	pOwn.ColHeadList = make([]*sColHeadInfo, 0)
+	aInfo.ColHeadList = make([]*sColHeadInfo, 0)
 	for i := 0; i < pSheet.MaxCol; i++ {
 		pFlagCell := pFlagRow.Cells[i]
 		pNameCell := pNameRow.Cells[i]
@@ -87,15 +168,15 @@ func (pOwn *sMaker) preprocessTableHead() bool {
 		}
 
 		//判断列名重复
-		for i := 0; i < len(pOwn.ColHeadList); i++ {
-			if pOwn.ColHeadList[i].Name == pNameCell.String() {
+		for i := 0; i < len(aInfo.ColHeadList); i++ {
+			if aInfo.ColHeadList[i].Name == pNameCell.String() {
 				logErr("repetitive column name, column:%s, file:%s", pNameCell.String(), strXlsxName)
 				return false
 			}
 		}
 
 		//判断数据类型是否合法
-		_, bExist := cDataType[pTypeCell.String()]
+		_, bExist := pOwn.mTypeMap[pTypeCell.String()]
 		if bExist == false {
 			logErr("illegal data type:%s, column:%s, file:%s", pTypeCell.String(), pNameCell.String(), strXlsxName)
 		}
@@ -116,23 +197,23 @@ func (pOwn *sMaker) preprocessTableHead() bool {
 		pColInfo.Type = pTypeCell.String()
 		pColInfo.IsLan = bIsLan
 
-		pOwn.ColHeadList = append(pOwn.ColHeadList, pColInfo)
+		aInfo.ColHeadList = append(aInfo.ColHeadList, pColInfo)
 	}
 	return true
 }
 
 //预处理内容
-func (pOwn *sMaker) preprocessContent() bool {
+func (pOwn *sExcelBuilder) preprocessContent(aInfo *sTableInfo) bool {
 	mapRepetitionID := make(map[int32]bool)
-	pSheet := pOwn.File.Sheets[0]
-	strXlsxName := pOwn.XlsxPath + pOwn.XlsxName
+	pSheet := aInfo.File.Sheets[0]
+	strXlsxName := aInfo.Dir + aInfo.FileName
 
 	//验证内容
 	for i := 3; i < pSheet.MaxRow; i++ {
 		pRow := pSheet.Rows[i]
 		nShowRowNum := i + 1 //用于显示的行号
-		for j := 0; j < len(pOwn.ColHeadList); j++ {
-			pColHead := pOwn.ColHeadList[j]
+		for j := 0; j < len(aInfo.ColHeadList); j++ {
+			pColHead := aInfo.ColHeadList[j]
 			cell := pRow.Cells[pColHead.Index]
 			//判断不能为空
 			if len(cell.String()) <= 0 {
@@ -165,7 +246,6 @@ func (pOwn *sMaker) preprocessContent() bool {
 						return false
 					}
 				}
-				break
 			case "int64":
 				{
 					_, err := strconv.ParseInt(cell.String(), 10, 64)
@@ -174,7 +254,6 @@ func (pOwn *sMaker) preprocessContent() bool {
 						return false
 					}
 				}
-				break
 			case "float32":
 				{
 					_, err := strconv.ParseFloat(cell.String(), 32)
@@ -183,7 +262,6 @@ func (pOwn *sMaker) preprocessContent() bool {
 						return false
 					}
 				}
-				break
 			case "float64":
 				{
 					_, err := strconv.ParseFloat(cell.String(), 64)
@@ -192,33 +270,7 @@ func (pOwn *sMaker) preprocessContent() bool {
 						return false
 					}
 				}
-				break
 			}
-		}
-	}
-	return true
-}
-
-//生成目标文件
-func (pOwn *sMaker) doProcess() bool {
-	if len(gCommand.RofPath) > 0 {
-		if pOwn.templateRof() == false {
-			return false
-		}
-	}
-	if len(gCommand.JsonPath) > 0 {
-		if pOwn.templateJson() == false {
-			return false
-		}
-	}
-	if len(gCommand.GoFilePath) > 0 {
-		if pOwn.templateGo() == false {
-			return false
-		}
-	}
-	if len(gCommand.CsFilePath) > 0 {
-		if pOwn.templateCs() == false {
-			return false
 		}
 	}
 	return true

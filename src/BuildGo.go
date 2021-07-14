@@ -5,9 +5,49 @@ import (
 	"os"
 )
 
-func (pOwn *sMaker) templateGo() bool {
-	strGoName := gCommand.GoFilePath + pOwn.RofName + ".go"
-	os.MkdirAll(gCommand.GoFilePath, os.ModeDir)
+type sGoBuilder struct {
+	mPath    string //文件夹路径
+	mTypeMap map[string]string
+}
+
+func (pOwn *sGoBuilder) getCommandDesc() string {
+	return "-go [path]. optional command, [path] is the output (.go) files floder."
+}
+
+func (pOwn *sGoBuilder) init(aCmdParm []string) bool {
+	if len(aCmdParm) != 1 {
+		logErr("the command -go needs 1 (only 1) argument.")
+		return false
+	}
+	pOwn.mPath = aCmdParm[0]
+	if pOwn.mPath[len(pOwn.mPath)-1] != '/' {
+		pOwn.mPath += "/"
+	}
+
+	pOwn.mTypeMap = make(map[string]string)
+	pOwn.mTypeMap["int32"] = "int32"
+	pOwn.mTypeMap["int64"] = "int64"
+	pOwn.mTypeMap["float32"] = "float32"
+	pOwn.mTypeMap["float64"] = "float64"
+	pOwn.mTypeMap["string"] = "string"
+	pOwn.mTypeMap["object"] = "string"
+
+	return true
+}
+
+func (pOwn *sGoBuilder) build() bool {
+	for _, v := range gTables {
+		if pOwn.doBuild(v) == false {
+			return false
+		}
+	}
+	return true
+}
+
+func (pOwn *sGoBuilder) doBuild(aInfo *sTableInfo) bool {
+	strGoPath := pOwn.mPath + aInfo.RelativeDir
+	strGoName := strGoPath + aInfo.RofName + ".go"
+	os.MkdirAll(strGoPath, os.ModeDir)
 	pFile, err := os.Create(strGoName)
 	if err != nil {
 		logErr("can not create go file:%s", strGoName)
@@ -16,58 +56,53 @@ func (pOwn *sMaker) templateGo() bool {
 	defer pFile.Close()
 
 	bIncludeMath := false
-	strRowClassName := fmt.Sprintf("s%sRow", pOwn.RofName)
-	strTableClassName := fmt.Sprintf("s%sTable", pOwn.RofName)
+	strRowClassName := fmt.Sprintf("s%sRow", aInfo.RofName)
+	strTableClassName := fmt.Sprintf("s%sTable", aInfo.RofName)
 	//row 结构体
 	strContent := fmt.Sprintf("type %s struct {\n", strRowClassName)
-	for i := 0; i < len(pOwn.ColHeadList); i++ {
-		cell := pOwn.ColHeadList[i]
-		strType := cGoTypeMap[cell.Type]
+	for i := 0; i < len(aInfo.ColHeadList); i++ {
+		cell := aInfo.ColHeadList[i]
+		strType := pOwn.mTypeMap[cell.Type]
 		strContent += fmt.Sprintf("m%s %s\n", cell.Name, strType)
 	}
 	strContent += "}\n"
 
 	//ReadBody
 	strContent += fmt.Sprintf("func (pOwn *%s) readBody(aBuffer []byte) int32 {\nvar nOffset int32\n", strRowClassName)
-	for i := 0; i < len(pOwn.ColHeadList); i++ {
-		cell := pOwn.ColHeadList[i]
+	for i := 0; i < len(aInfo.ColHeadList); i++ {
+		cell := aInfo.ColHeadList[i]
 		switch cell.Type {
 		case "int32":
 			{
 				strContent += fmt.Sprintf("pOwn.m%s = int32(binary.BigEndian.Uint32(aBuffer[nOffset:]))\nnOffset+=4\n", cell.Name)
 			}
-			break
 		case "int64":
 			{
 				strContent += fmt.Sprintf("pOwn.m%s = int64(binary.BigEndian.Uint64(aBuffer[nOffset:]))\nnOffset+=8\n", cell.Name)
 			}
-			break
 		case "float32":
 			{
 				strContent += fmt.Sprintf("pOwn.m%s = math.Float32frombits(binary.BigEndian.Uint32(aBuffer[nOffset:]))\nnOffset+=4\n", cell.Name)
 				bIncludeMath = true
 			}
-			break
 		case "float64":
 			{
 				strContent += fmt.Sprintf("pOwn.m%s = math.Float64frombits(binary.BigEndian.Uint64(aBuffer[nOffset:]))\nnOffset+=8\n", cell.Name)
 				bIncludeMath = true
 			}
-			break
 		case "string", "object":
 			{
 				strContent += fmt.Sprintf("n%sLen := int32(binary.BigEndian.Uint32(aBuffer[nOffset:]))\nnOffset+=4\n", cell.Name)
 				strContent += fmt.Sprintf("pOwn.m%s = string(aBuffer[nOffset:nOffset+n%sLen])\nnOffset+=n%sLen\n", cell.Name, cell.Name, cell.Name)
 			}
-			break
 		}
 	}
 	strContent += "return nOffset\n}\n"
 
 	//函数
-	for i := 0; i < len(pOwn.ColHeadList); i++ {
-		cell := pOwn.ColHeadList[i]
-		strType := cGoTypeMap[cell.Type]
+	for i := 0; i < len(aInfo.ColHeadList); i++ {
+		cell := aInfo.ColHeadList[i]
+		strType := pOwn.mTypeMap[cell.Type]
 		strContent += fmt.Sprintf("func (pOwn *%s) Get%s() %s { return pOwn.m%s } \n", strRowClassName, cell.Name, strType, cell.Name)
 	}
 

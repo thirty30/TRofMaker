@@ -3,12 +3,50 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 )
 
-func (pOwn *sMaker) templateCs() bool {
-	strCsPath := strings.Replace(pOwn.XlsxPath, gCommand.XlsxPath, gCommand.CsFilePath, 1)
-	strCsName := strCsPath + pOwn.RofName + ".cs"
+type sCsBuilder struct {
+	mPath    string //文件夹路径
+	mTypeMap map[string]string
+}
+
+func (pOwn *sCsBuilder) getCommandDesc() string {
+	return "-cs [path]. optional command, [path] is the output (.cs) files floder."
+}
+
+func (pOwn *sCsBuilder) init(aCmdParm []string) bool {
+	if len(aCmdParm) != 1 {
+		logErr("the command -cs needs 1 (only 1) argument.")
+		return false
+	}
+	pOwn.mPath = aCmdParm[0]
+	if pOwn.mPath[len(pOwn.mPath)-1] != '/' {
+		pOwn.mPath += "/"
+	}
+
+	pOwn.mTypeMap = make(map[string]string)
+	pOwn.mTypeMap["int32"] = "int"
+	pOwn.mTypeMap["int64"] = "long"
+	pOwn.mTypeMap["float32"] = "float"
+	pOwn.mTypeMap["float64"] = "double"
+	pOwn.mTypeMap["string"] = "string"
+	pOwn.mTypeMap["object"] = "string"
+
+	return true
+}
+
+func (pOwn *sCsBuilder) build() bool {
+	for _, v := range gTables {
+		if pOwn.doBuild(v) == false {
+			return false
+		}
+	}
+	return true
+}
+
+func (pOwn *sCsBuilder) doBuild(aInfo *sTableInfo) bool {
+	strCsPath := pOwn.mPath + aInfo.RelativeDir
+	strCsName := strCsPath + aInfo.RofName + ".cs"
 	os.MkdirAll(strCsPath, os.ModeDir)
 	pFile, err := os.Create(strCsName)
 	if err != nil {
@@ -22,52 +60,47 @@ func (pOwn *sMaker) templateCs() bool {
 	pFile.WriteString("using System.Collections.Generic;\n")
 	pFile.WriteString("namespace Rof\n{\n")
 
-	strRowClassName := fmt.Sprintf("%sRow", pOwn.RofName)
-	strTableClassName := fmt.Sprintf("%sTable", pOwn.RofName)
+	strRowClassName := fmt.Sprintf("%sRow", aInfo.RofName)
+	strTableClassName := fmt.Sprintf("%sTable", aInfo.RofName)
 	//row类
 	strContent := fmt.Sprintf("public class %s\n{\n", strRowClassName)
-	for i := 0; i < len(pOwn.ColHeadList); i++ {
-		cell := pOwn.ColHeadList[i]
-		strType := cCsTypeMap[cell.Type]
+	for i := 0; i < len(aInfo.ColHeadList); i++ {
+		cell := aInfo.ColHeadList[i]
+		strType := pOwn.mTypeMap[cell.Type]
 		strContent += fmt.Sprintf("public %s %s { get; private set; }\n", strType, cell.Name)
 	}
 
 	//ReadBody
 	strContent += "public int ReadBody(byte[] rData, int nOffset)\n{\n"
-	for i := 0; i < len(pOwn.ColHeadList); i++ {
-		cell := pOwn.ColHeadList[i]
+	for i := 0; i < len(aInfo.ColHeadList); i++ {
+		cell := aInfo.ColHeadList[i]
 		switch cell.Type {
 		case "int32":
 			{
 				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 4);}\n"
 				strContent += fmt.Sprintf("%s = (int)BitConverter.ToUInt32(rData, nOffset); nOffset += 4;\n", cell.Name)
 			}
-			break
 		case "int64":
 			{
 				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 8);}\n"
 				strContent += fmt.Sprintf("%s = (long)BitConverter.ToUInt64(rData, nOffset); nOffset += 8;\n", cell.Name)
 			}
-			break
 		case "float32":
 			{
 				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 4);}\n"
 				strContent += fmt.Sprintf("%s = BitConverter.ToSingle(rData, nOffset); nOffset += 4;\n", cell.Name)
 			}
-			break
 		case "float64":
 			{
 				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 8);}\n"
 				strContent += fmt.Sprintf("%s = BitConverter.ToDouble(rData, nOffset); nOffset += 8;\n", cell.Name)
 			}
-			break
 		case "string", "object":
 			{
 				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 4);}\n"
 				strContent += fmt.Sprintf("int n%sLen = (int)BitConverter.ToUInt32(rData, nOffset); nOffset += 4;\n", cell.Name)
 				strContent += fmt.Sprintf("%s = Encoding.UTF8.GetString(rData, nOffset, n%sLen); nOffset += n%sLen;\n", cell.Name, cell.Name, cell.Name)
 			}
-			break
 		}
 	}
 	strContent += "return nOffset;\n}\n"

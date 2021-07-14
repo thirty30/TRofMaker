@@ -5,17 +5,45 @@ import (
 	"math"
 	"os"
 	"strconv"
-	"strings"
 )
 
-func (pOwn *sMaker) templateRof() bool {
-	strRofPath := strings.Replace(pOwn.XlsxPath, gCommand.XlsxPath, gCommand.RofPath, 1)
-	strRofName := strRofPath + pOwn.RofName + ".bytes"
+type sRofBuilder struct {
+	mPath string //文件夹路径
+}
+
+func (pOwn *sRofBuilder) getCommandDesc() string {
+	return "-rof [path]. optional command, [path] is the output (.bytes) files floder."
+}
+
+func (pOwn *sRofBuilder) init(aCmdParm []string) bool {
+	if len(aCmdParm) != 1 {
+		logErr("the command -rof needs 1 (only 1) argument.")
+		return false
+	}
+	pOwn.mPath = aCmdParm[0]
+	if pOwn.mPath[len(pOwn.mPath)-1] != '/' {
+		pOwn.mPath += "/"
+	}
+	return true
+}
+
+func (pOwn *sRofBuilder) build() bool {
+	for _, v := range gTables {
+		if pOwn.doBuild(v) == false {
+			return false
+		}
+	}
+	return true
+}
+
+func (pOwn *sRofBuilder) doBuild(aInfo *sTableInfo) bool {
+	strRofPath := pOwn.mPath + aInfo.RelativeDir
+	strRofName := strRofPath + aInfo.RofName + ".bytes"
 	os.MkdirAll(strRofPath, os.ModeDir)
-	pSheet := pOwn.File.Sheets[0]
+	pSheet := aInfo.File.Sheets[0]
 	//填写头
 	nRealRowNum := pSheet.MaxRow - 3
-	nRealColNum := len(pOwn.ColHeadList)
+	nRealColNum := len(aInfo.ColHeadList)
 	pBuffer := make([]byte, cRofDefaultSize)
 	nOffset := 64
 
@@ -25,8 +53,8 @@ func (pOwn *sMaker) templateRof() bool {
 	nOffset += 4
 
 	//填写列属性
-	for i := 0; i < len(pOwn.ColHeadList); i++ {
-		pInfo := pOwn.ColHeadList[i]
+	for i := 0; i < len(aInfo.ColHeadList); i++ {
+		pInfo := aInfo.ColHeadList[i]
 		nNameLen := int8(len(pInfo.Name))
 		pBuffer[nOffset] = byte(nNameLen)
 		nOffset++
@@ -46,8 +74,8 @@ func (pOwn *sMaker) templateRof() bool {
 	//填写内容
 	for i := 3; i < pSheet.MaxRow; i++ {
 		pRow := pSheet.Rows[i]
-		for j := 0; j < len(pOwn.ColHeadList); j++ {
-			pColHead := pOwn.ColHeadList[j]
+		for j := 0; j < len(aInfo.ColHeadList); j++ {
+			pColHead := aInfo.ColHeadList[j]
 			cell := pRow.Cells[pColHead.Index]
 
 			switch pColHead.Type {
@@ -58,7 +86,6 @@ func (pOwn *sMaker) templateRof() bool {
 					copybuffer(&pBuffer, nOffset, byteTempBuffer, 4)
 					nOffset += 4
 				}
-				break
 			case "int64":
 				{
 					nValue, _ := strconv.ParseInt(cell.String(), 10, 64)
@@ -66,7 +93,6 @@ func (pOwn *sMaker) templateRof() bool {
 					copybuffer(&pBuffer, nOffset, byteTempBuffer, 8)
 					nOffset += 8
 				}
-				break
 			case "float32":
 				{
 					fValue, _ := strconv.ParseFloat(cell.String(), 32)
@@ -75,7 +101,6 @@ func (pOwn *sMaker) templateRof() bool {
 					copybuffer(&pBuffer, nOffset, byteTempBuffer, 4)
 					nOffset += 4
 				}
-				break
 			case "float64":
 				{
 					fValue, _ := strconv.ParseFloat(cell.String(), 64)
@@ -84,7 +109,6 @@ func (pOwn *sMaker) templateRof() bool {
 					copybuffer(&pBuffer, nOffset, byteTempBuffer, 8)
 					nOffset += 8
 				}
-				break
 			case "string", "object":
 				{
 					strValue := cell.String()
@@ -96,7 +120,6 @@ func (pOwn *sMaker) templateRof() bool {
 					copybuffer(&pBuffer, nOffset, []byte(strValue), nLen)
 					nOffset += nLen
 				}
-				break
 			}
 		}
 	}
