@@ -22,6 +22,7 @@ type sTableInfo struct {
 	RelativeDir string          //xlsx相对路径
 	FileName    string          //xlsx文件名
 	RofName     string          //rof文件名
+	TableName   string          //表名
 	File        *xlsx.File      //excel表对象
 	ColHeadList []*sColHeadInfo //列头信息
 }

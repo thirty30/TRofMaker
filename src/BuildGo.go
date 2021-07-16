@@ -45,7 +45,9 @@ func (pOwn *sGoBuilder) build() bool {
 	os.MkdirAll(pOwn.mPath, os.ModeDir)
 
 	//生成定义文件
-	pOwn.buildDefineFile()
+	if pOwn.buildDefineFile() == false {
+		return false
+	}
 
 	//生成rof内容文件
 	for _, v := range gTables {
@@ -54,8 +56,6 @@ func (pOwn *sGoBuilder) build() bool {
 		}
 	}
 
-	//生成Manager文件
-	pOwn.buildManagerFile()
 	return true
 }
 
@@ -63,7 +63,7 @@ func (pOwn *sGoBuilder) buildDefineFile() bool {
 	strGoName := pOwn.mPath + "RofDefine.go"
 	pFile, err := os.Create(strGoName)
 	if err != nil {
-		logErr("can not create go define file: %s", strGoName)
+		logErr("can not create RofDefine.go")
 		return false
 	}
 	defer pFile.Close()
@@ -167,8 +167,8 @@ func (pOwn *sGoBuilder) doBuild(aInfo *sTableInfo) bool {
 				strContent += fmt.Sprintf("pOwn.m%s = make([]nnkv, 0)\n", cell.Name)
 				strContent += fmt.Sprintf("n%sLen := int32(binary.BigEndian.Uint32(aBuffer[nOffset:]))\nnOffset+=4\n", cell.Name)
 				strContent += fmt.Sprintf("for i := int32(0); i < n%sLen; i++ {\n", cell.Name)
-				strContent += fmt.Sprintf("key := int32(binary.BigEndian.Uint32(aBuffer[nOffset:]))\nnOffset+=4\n")
-				strContent += fmt.Sprintf("value := math.Float64frombits(binary.BigEndian.Uint64(aBuffer[nOffset:]))\nnOffset+=8\n")
+				strContent += "key := int32(binary.BigEndian.Uint32(aBuffer[nOffset:]))\nnOffset+=4\n"
+				strContent += "value := math.Float64frombits(binary.BigEndian.Uint64(aBuffer[nOffset:]))\nnOffset+=8\n"
 				strContent += fmt.Sprintf("pOwn.m%s = append(pOwn.m%s, nnkv{k: key, v: value})\n}\n", cell.Name, cell.Name)
 			}
 		}
@@ -186,31 +186,31 @@ func (pOwn *sGoBuilder) doBuild(aInfo *sTableInfo) bool {
 	strContent += fmt.Sprintf("type %s struct { \nmRowNum int32\nmColNum int32\nmIDMap  map[int32]*%s\nmRowMap map[int32]int32\n}\n", strTableClassName, strRowClassName)
 	strContent += fmt.Sprintf("func (pOwn *%s) GetDataByID(aID int32) *%s {return pOwn.mIDMap[aID]}\n", strTableClassName, strRowClassName)
 	strContent += fmt.Sprintf("func (pOwn *%s) GetDataByRow(aIndex int32) *%s {\n", strTableClassName, strRowClassName)
-	strContent += fmt.Sprintf("nID, ok := pOwn.mRowMap[aIndex]\nif ok == false {return nil}\nreturn pOwn.mIDMap[nID]\n}\n")
+	strContent += "nID, ok := pOwn.mRowMap[aIndex]\nif ok == false {return nil}\nreturn pOwn.mIDMap[nID]\n}\n"
 	strContent += fmt.Sprintf("func (pOwn *%s) GetRows() int32 {return pOwn.mRowNum}\n", strTableClassName)
 	strContent += fmt.Sprintf("func (pOwn *%s) GetCols() int32 {return pOwn.mColNum}\n", strTableClassName)
 
 	strContent += fmt.Sprintf("func (pOwn *%s) init(aPath string) bool {\n", strTableClassName)
 	strContent += fmt.Sprintf("pOwn.mIDMap = make(map[int32]*%s)\n", strRowClassName)
-	strContent += fmt.Sprintf("pOwn.mRowMap = make(map[int32]int32)\n")
-	strContent += fmt.Sprintf("pFile, err := os.Open(aPath)\nif err != nil {\nreturn false\n}\ndefer pFile.Close()\n")
-	strContent += fmt.Sprintf("pFileInfo, _ := pFile.Stat()\nnFileSize := pFileInfo.Size()\npBuffer := make([]byte, nFileSize)\n")
-	strContent += fmt.Sprintf("_, err = pFile.Read(pBuffer)\nif err != nil {\nreturn false\n}\n")
-	strContent += fmt.Sprintf("var nOffset int32 = 64\n")
-	strContent += fmt.Sprintf("pOwn.mRowNum = int32(binary.BigEndian.Uint32(pBuffer[nOffset:]))\nnOffset += 4\n")
-	strContent += fmt.Sprintf("pOwn.mColNum = int32(binary.BigEndian.Uint32(pBuffer[nOffset:]))\nnOffset += 4\n")
+	strContent += "pOwn.mRowMap = make(map[int32]int32)\n"
+	strContent += "pFile, err := os.Open(aPath)\nif err != nil {\nreturn false\n}\ndefer pFile.Close()\n"
+	strContent += "pFileInfo, _ := pFile.Stat()\nnFileSize := pFileInfo.Size()\npBuffer := make([]byte, nFileSize)\n"
+	strContent += "_, err = pFile.Read(pBuffer)\nif err != nil {\nreturn false\n}\n"
+	strContent += "var nOffset int32 = 64\n"
+	strContent += "pOwn.mRowNum = int32(binary.BigEndian.Uint32(pBuffer[nOffset:]))\nnOffset += 4\n"
+	strContent += "pOwn.mColNum = int32(binary.BigEndian.Uint32(pBuffer[nOffset:]))\nnOffset += 4\n"
 
-	strContent += fmt.Sprintf("for i := 0; i < int(pOwn.mColNum); i++ {\n")
-	strContent += fmt.Sprintf("nNameLen := int8(pBuffer[nOffset])\nnOffset += 1 + int32(nNameLen)\n")
-	strContent += fmt.Sprintf("nTypeLen := int8(pBuffer[nOffset])\nnOffset += 1 + int32(nTypeLen)\n")
-	strContent += fmt.Sprintf("}\n")
-	strContent += fmt.Sprintf("for i := int32(0); i < pOwn.mRowNum; i++ {\n")
-	strContent += fmt.Sprintf("nID := int32(binary.BigEndian.Uint32(pBuffer[nOffset:]))\n")
+	strContent += "for i := 0; i < int(pOwn.mColNum); i++ {\n"
+	strContent += "nNameLen := int8(pBuffer[nOffset])\nnOffset += 1 + int32(nNameLen)\n"
+	strContent += "nTypeLen := int8(pBuffer[nOffset])\nnOffset += 1 + int32(nTypeLen)\n"
+	strContent += "}\n"
+	strContent += "for i := int32(0); i < pOwn.mRowNum; i++ {\n"
+	strContent += "nID := int32(binary.BigEndian.Uint32(pBuffer[nOffset:]))\n"
 	strContent += fmt.Sprintf("pData := new(%s)\n", strRowClassName)
-	strContent += fmt.Sprintf("nOffset += pData.readBody(pBuffer[nOffset:])\n")
-	strContent += fmt.Sprintf("pOwn.mIDMap[nID] = pData\n")
-	strContent += fmt.Sprintf("pOwn.mRowMap[i] = nID\n")
-	strContent += fmt.Sprintf("}\nreturn true\n}\n")
+	strContent += "nOffset += pData.readBody(pBuffer[nOffset:])\n"
+	strContent += "pOwn.mIDMap[nID] = pData\n"
+	strContent += "pOwn.mRowMap[i] = nID\n"
+	strContent += "}\nreturn true\n}\n"
 
 	pFile.WriteString("package rof\n")
 	pFile.WriteString("import \"encoding/binary\"\n")
@@ -222,9 +222,5 @@ func (pOwn *sGoBuilder) doBuild(aInfo *sTableInfo) bool {
 		pFile.WriteString("import \"strings\"\n")
 	}
 	pFile.WriteString(strContent)
-	return true
-}
-
-func (pOwn *sGoBuilder) buildManagerFile() bool {
 	return true
 }

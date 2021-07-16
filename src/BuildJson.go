@@ -10,7 +10,7 @@ type sJsonBuilder struct {
 }
 
 func (pOwn *sJsonBuilder) getCommandDesc() string {
-	return "-go [path]. optional command, [path] is the output (.go) files floder."
+	return "-json [path]. optional command, [path] is the output (.json) files floder."
 }
 
 func (pOwn *sJsonBuilder) init(aCmdParm []string) bool {

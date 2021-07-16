@@ -69,6 +69,7 @@ func (pOwn *sExcelBuilder) init(aCmdParm []string) bool {
 
 		v.RofName = rofName
 		v.File = pFile
+		v.TableName = pSheet.Name
 		if pOwn.mIsFolder == true {
 			v.RelativeDir = strings.Replace(v.Dir, pOwn.mPath, "", 1)
 		}
