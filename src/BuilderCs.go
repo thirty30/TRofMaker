@@ -31,6 +31,12 @@ func (pOwn *sCsBuilder) init(aCmdParm []string) bool {
 	pOwn.mTypeMap["float64"] = "double"
 	pOwn.mTypeMap["string"] = "string"
 	pOwn.mTypeMap["object"] = "string"
+	pOwn.mTypeMap["[]int32"] = "[]int32"
+	pOwn.mTypeMap["[]int64"] = "[]int64"
+	pOwn.mTypeMap["[]float32"] = "[]float32"
+	pOwn.mTypeMap["[]float64"] = "[]float64"
+	pOwn.mTypeMap["[]string"] = "[]string"
+	pOwn.mTypeMap["[]nnkv"] = "[]nnkv"
 
 	return true
 }

@@ -34,6 +34,9 @@ func main() {
 
 	//处理文件
 	for _, v := range gCommandItems {
+		if v.CanExecute == false {
+			continue
+		}
 		if v.Builder.build() == false {
 			return
 		}

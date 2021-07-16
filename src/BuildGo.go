@@ -31,23 +31,49 @@ func (pOwn *sGoBuilder) init(aCmdParm []string) bool {
 	pOwn.mTypeMap["float64"] = "float64"
 	pOwn.mTypeMap["string"] = "string"
 	pOwn.mTypeMap["object"] = "string"
+	pOwn.mTypeMap["[]int32"] = "[]int32"
+	pOwn.mTypeMap["[]int64"] = "[]int64"
+	pOwn.mTypeMap["[]float32"] = "[]float32"
+	pOwn.mTypeMap["[]float64"] = "[]float64"
+	pOwn.mTypeMap["[]string"] = "[]string"
+	pOwn.mTypeMap["[]nnkv"] = "[]nnkv"
 
 	return true
 }
 
 func (pOwn *sGoBuilder) build() bool {
+	os.MkdirAll(pOwn.mPath, os.ModeDir)
+
+	//生成定义文件
+	pOwn.buildDefineFile()
+
+	//生成rof内容文件
 	for _, v := range gTables {
 		if pOwn.doBuild(v) == false {
 			return false
 		}
 	}
+
+	//生成Manager文件
+	pOwn.buildManagerFile()
+	return true
+}
+
+func (pOwn *sGoBuilder) buildDefineFile() bool {
+	strGoName := pOwn.mPath + "RofDefine.go"
+	pFile, err := os.Create(strGoName)
+	if err != nil {
+		logErr("can not create go define file: %s", strGoName)
+		return false
+	}
+	defer pFile.Close()
+	pFile.WriteString("package rof\n")
+	pFile.WriteString("type nnkv struct {\nk int32\nv float64\n}")
 	return true
 }
 
 func (pOwn *sGoBuilder) doBuild(aInfo *sTableInfo) bool {
-	strGoPath := pOwn.mPath + aInfo.RelativeDir
-	strGoName := strGoPath + aInfo.RofName + ".go"
-	os.MkdirAll(strGoPath, os.ModeDir)
+	strGoName := pOwn.mPath + aInfo.RofName + ".go"
 	pFile, err := os.Create(strGoName)
 	if err != nil {
 		logErr("can not create go file:%s", strGoName)
@@ -56,6 +82,7 @@ func (pOwn *sGoBuilder) doBuild(aInfo *sTableInfo) bool {
 	defer pFile.Close()
 
 	bIncludeMath := false
+	bIncludeStrings := false
 	strRowClassName := fmt.Sprintf("s%sRow", aInfo.RofName)
 	strTableClassName := fmt.Sprintf("s%sTable", aInfo.RofName)
 	//row 结构体
@@ -94,6 +121,55 @@ func (pOwn *sGoBuilder) doBuild(aInfo *sTableInfo) bool {
 			{
 				strContent += fmt.Sprintf("n%sLen := int32(binary.BigEndian.Uint32(aBuffer[nOffset:]))\nnOffset+=4\n", cell.Name)
 				strContent += fmt.Sprintf("pOwn.m%s = string(aBuffer[nOffset:nOffset+n%sLen])\nnOffset+=n%sLen\n", cell.Name, cell.Name, cell.Name)
+			}
+		case "[]int32":
+			{
+				strContent += fmt.Sprintf("pOwn.m%s = make([]int32, 0)\n", cell.Name)
+				strContent += fmt.Sprintf("n%sLen := int32(binary.BigEndian.Uint32(aBuffer[nOffset:]))\nnOffset+=4\n", cell.Name)
+				strContent += fmt.Sprintf("for i := int32(0); i < n%sLen; i++ {\n", cell.Name)
+				strContent += fmt.Sprintf("pOwn.m%s = append(pOwn.m%s, int32(binary.BigEndian.Uint32(aBuffer[nOffset:])))\nnOffset+=4\n}\n", cell.Name, cell.Name)
+			}
+		case "[]int64":
+			{
+				strContent += fmt.Sprintf("pOwn.m%s = make([]int64, 0)\n", cell.Name)
+				strContent += fmt.Sprintf("n%sLen := int32(binary.BigEndian.Uint32(aBuffer[nOffset:]))\nnOffset+=4\n", cell.Name)
+				strContent += fmt.Sprintf("for i := int32(0); i < n%sLen; i++ {\n", cell.Name)
+				strContent += fmt.Sprintf("pOwn.m%s = append(pOwn.m%s, int64(binary.BigEndian.Uint64(aBuffer[nOffset:])))\nnOffset+=8\n}\n", cell.Name, cell.Name)
+			}
+		case "[]float32":
+			{
+				bIncludeMath = true
+				strContent += fmt.Sprintf("pOwn.m%s = make([]float32, 0)\n", cell.Name)
+				strContent += fmt.Sprintf("n%sLen := int32(binary.BigEndian.Uint32(aBuffer[nOffset:]))\nnOffset+=4\n", cell.Name)
+				strContent += fmt.Sprintf("for i := int32(0); i < n%sLen; i++ {\n", cell.Name)
+				strContent += fmt.Sprintf("pOwn.m%s = append(pOwn.m%s, math.Float32frombits(binary.BigEndian.Uint32(aBuffer[nOffset:])))\nnOffset+=4\n}\n", cell.Name, cell.Name)
+			}
+		case "[]float64":
+			{
+				bIncludeMath = true
+				strContent += fmt.Sprintf("pOwn.m%s = make([]float64, 0)\n", cell.Name)
+				strContent += fmt.Sprintf("n%sLen := int32(binary.BigEndian.Uint32(aBuffer[nOffset:]))\nnOffset+=4\n", cell.Name)
+				strContent += fmt.Sprintf("for i := int32(0); i < n%sLen; i++ {\n", cell.Name)
+				strContent += fmt.Sprintf("pOwn.m%s = append(pOwn.m%s, math.Float64frombits(binary.BigEndian.Uint64(aBuffer[nOffset:])))\nnOffset+=8\n}\n", cell.Name, cell.Name)
+			}
+		case "[]string":
+			{
+				bIncludeStrings = true
+				strContent += fmt.Sprintf("pOwn.m%s = make([]string, 0)\n", cell.Name)
+				strContent += fmt.Sprintf("n%sLen := int32(binary.BigEndian.Uint32(aBuffer[nOffset:]))\nnOffset+=4\n", cell.Name)
+				strContent += fmt.Sprintf("%sTempBuf := string(aBuffer[nOffset:nOffset+n%sLen])\nnOffset+=n%sLen\n", cell.Name, cell.Name, cell.Name)
+				strContent += fmt.Sprintf("%sElements := strings.Split(%sTempBuf, \",\")\n", cell.Name, cell.Name)
+				strContent += fmt.Sprintf("for _, item := range %sElements{\npOwn.m%s = append(pOwn.m%s, item)\n}\n", cell.Name, cell.Name, cell.Name)
+			}
+		case "[]nnkv":
+			{
+				bIncludeMath = true
+				strContent += fmt.Sprintf("pOwn.m%s = make([]nnkv, 0)\n", cell.Name)
+				strContent += fmt.Sprintf("n%sLen := int32(binary.BigEndian.Uint32(aBuffer[nOffset:]))\nnOffset+=4\n", cell.Name)
+				strContent += fmt.Sprintf("for i := int32(0); i < n%sLen; i++ {\n", cell.Name)
+				strContent += fmt.Sprintf("key := int32(binary.BigEndian.Uint32(aBuffer[nOffset:]))\nnOffset+=4\n")
+				strContent += fmt.Sprintf("value := math.Float64frombits(binary.BigEndian.Uint64(aBuffer[nOffset:]))\nnOffset+=8\n")
+				strContent += fmt.Sprintf("pOwn.m%s = append(pOwn.m%s, nnkv{k: key, v: value})\n}\n", cell.Name, cell.Name)
 			}
 		}
 	}
@@ -142,6 +218,13 @@ func (pOwn *sGoBuilder) doBuild(aInfo *sTableInfo) bool {
 	if bIncludeMath == true {
 		pFile.WriteString("import \"math\"\n")
 	}
+	if bIncludeStrings == true {
+		pFile.WriteString("import \"strings\"\n")
+	}
 	pFile.WriteString(strContent)
+	return true
+}
+
+func (pOwn *sGoBuilder) buildManagerFile() bool {
 	return true
 }

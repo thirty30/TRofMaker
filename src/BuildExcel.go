@@ -87,9 +87,6 @@ func (pOwn *sExcelBuilder) init(aCmdParm []string) bool {
 	pOwn.mTypeMap["[]float64"] = true
 	pOwn.mTypeMap["[]string"] = true
 	pOwn.mTypeMap["[]nnkv"] = true
-	pOwn.mTypeMap["[]nskv"] = true
-	pOwn.mTypeMap["[]snkv"] = true
-	pOwn.mTypeMap["[]sskv"] = true
 
 	return true
 }
@@ -268,6 +265,80 @@ func (pOwn *sExcelBuilder) preprocessContent(aInfo *sTableInfo) bool {
 					if err != nil {
 						logErr("the value's type is not float64 in row :%d, column: %s, file: %s", nShowRowNum, pColHead.Name, strXlsxName)
 						return false
+					}
+				}
+			case "[]int32":
+				{
+					content := cell.String()
+					elements := strings.Split(content, ",")
+					for _, item := range elements {
+						_, err := strconv.ParseInt(item, 10, 32)
+						if err != nil {
+							logErr("can not analysis the value with []int32 in row :%d, column: %s, file: %s", nShowRowNum, pColHead.Name, strXlsxName)
+							return false
+						}
+					}
+				}
+			case "[]int64":
+				{
+					content := cell.String()
+					elements := strings.Split(content, ",")
+					for _, item := range elements {
+						_, err := strconv.ParseInt(item, 10, 64)
+						if err != nil {
+							logErr("can not analysis the value with []int64 in row :%d, column: %s, file: %s", nShowRowNum, pColHead.Name, strXlsxName)
+							return false
+						}
+					}
+				}
+			case "[]float32":
+				{
+					content := cell.String()
+					elements := strings.Split(content, ",")
+					for _, item := range elements {
+						_, err := strconv.ParseFloat(item, 32)
+						if err != nil {
+							logErr("can not analysis the value with []float32 in row :%d, column: %s, file: %s", nShowRowNum, pColHead.Name, strXlsxName)
+							return false
+						}
+					}
+				}
+			case "[]float64":
+				{
+					content := cell.String()
+					elements := strings.Split(content, ",")
+					for _, item := range elements {
+						_, err := strconv.ParseFloat(item, 64)
+						if err != nil {
+							logErr("can not analysis the value with []float64 in row :%d, column: %s, file: %s", nShowRowNum, pColHead.Name, strXlsxName)
+							return false
+						}
+					}
+				}
+			case "[]nnkv":
+				{
+					content := cell.String()
+					elements := strings.Split(content, ",")
+					for _, item := range elements {
+						pair := strings.Split(item, ":")
+						if len(pair) != 2 {
+							logErr("wrong kv pair format in row :%d, column: %s, file: %s", nShowRowNum, pColHead.Name, strXlsxName)
+							return false
+						}
+
+						k := pair[0]
+						v := pair[1]
+
+						_, err := strconv.ParseInt(k, 10, 32)
+						if err != nil {
+							logErr("can not analysis the pair's key with int32 in row :%d, column: %s, file: %s", nShowRowNum, pColHead.Name, strXlsxName)
+							return false
+						}
+						_, err = strconv.ParseFloat(v, 64)
+						if err != nil {
+							logErr("can not analysis the value with int32 nor float32 in row :%d, column: %s, file: %s", nShowRowNum, pColHead.Name, strXlsxName)
+							return false
+						}
 					}
 				}
 			}

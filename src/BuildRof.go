@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type sRofBuilder struct {
@@ -109,7 +110,7 @@ func (pOwn *sRofBuilder) doBuild(aInfo *sTableInfo) bool {
 					copybuffer(&pBuffer, nOffset, byteTempBuffer, 8)
 					nOffset += 8
 				}
-			case "string", "object":
+			case "string", "object", "[]string":
 				{
 					strValue := cell.String()
 					nLen := len(strValue)
@@ -119,6 +120,103 @@ func (pOwn *sRofBuilder) doBuild(aInfo *sTableInfo) bool {
 
 					copybuffer(&pBuffer, nOffset, []byte(strValue), nLen)
 					nOffset += nLen
+				}
+			case "[]int32":
+				{
+					strValue := cell.String()
+					elements := strings.Split(strValue, ",")
+
+					nLen := len(elements)
+					binary.BigEndian.PutUint32(byteTempBuffer, uint32(nLen))
+					copybuffer(&pBuffer, nOffset, byteTempBuffer, 4)
+					nOffset += 4
+
+					for _, item := range elements {
+						nValue, _ := strconv.ParseInt(item, 10, 32)
+						binary.BigEndian.PutUint32(byteTempBuffer, uint32(nValue))
+						copybuffer(&pBuffer, nOffset, byteTempBuffer, 4)
+						nOffset += 4
+					}
+				}
+			case "[]int64":
+				{
+					strValue := cell.String()
+					elements := strings.Split(strValue, ",")
+
+					nLen := len(elements)
+					binary.BigEndian.PutUint32(byteTempBuffer, uint32(nLen))
+					copybuffer(&pBuffer, nOffset, byteTempBuffer, 4)
+					nOffset += 4
+
+					for _, item := range elements {
+						nValue, _ := strconv.ParseInt(item, 10, 64)
+						binary.BigEndian.PutUint64(byteTempBuffer, uint64(nValue))
+						copybuffer(&pBuffer, nOffset, byteTempBuffer, 8)
+						nOffset += 8
+					}
+				}
+			case "[]float32":
+				{
+					strValue := cell.String()
+					elements := strings.Split(strValue, ",")
+
+					nLen := len(elements)
+					binary.BigEndian.PutUint32(byteTempBuffer, uint32(nLen))
+					copybuffer(&pBuffer, nOffset, byteTempBuffer, 4)
+					nOffset += 4
+
+					for _, item := range elements {
+						fValue, _ := strconv.ParseFloat(item, 32)
+						bits := math.Float32bits(float32(fValue))
+						binary.BigEndian.PutUint32(byteTempBuffer, bits)
+						copybuffer(&pBuffer, nOffset, byteTempBuffer, 4)
+						nOffset += 4
+					}
+				}
+			case "[]float64":
+				{
+					strValue := cell.String()
+					elements := strings.Split(strValue, ",")
+
+					nLen := len(elements)
+					binary.BigEndian.PutUint32(byteTempBuffer, uint32(nLen))
+					copybuffer(&pBuffer, nOffset, byteTempBuffer, 4)
+					nOffset += 4
+
+					for _, item := range elements {
+						fValue, _ := strconv.ParseFloat(item, 64)
+						bits := math.Float64bits(fValue)
+						binary.BigEndian.PutUint64(byteTempBuffer, bits)
+						copybuffer(&pBuffer, nOffset, byteTempBuffer, 8)
+						nOffset += 8
+					}
+				}
+			case "[]nnkv":
+				{
+					strValue := cell.String()
+					elements := strings.Split(strValue, ",")
+
+					nLen := len(elements)
+					binary.BigEndian.PutUint32(byteTempBuffer, uint32(nLen))
+					copybuffer(&pBuffer, nOffset, byteTempBuffer, 4)
+					nOffset += 4
+
+					for _, item := range elements {
+						pair := strings.Split(item, ":")
+						k := pair[0]
+						v := pair[1]
+
+						nValue, _ := strconv.ParseInt(k, 10, 32)
+						binary.BigEndian.PutUint32(byteTempBuffer, uint32(nValue))
+						copybuffer(&pBuffer, nOffset, byteTempBuffer, 4)
+						nOffset += 4
+
+						fValue, _ := strconv.ParseFloat(v, 64)
+						bits := math.Float64bits(fValue)
+						binary.BigEndian.PutUint64(byteTempBuffer, bits)
+						copybuffer(&pBuffer, nOffset, byteTempBuffer, 8)
+						nOffset += 8
+					}
 				}
 			}
 		}
