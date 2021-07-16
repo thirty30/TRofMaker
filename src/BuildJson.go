@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 type sJsonBuilder struct {
@@ -67,6 +68,39 @@ func (pOwn *sJsonBuilder) doBuild(aInfo *sTableInfo) bool {
 			case "string":
 				{
 					strRowContent += fmt.Sprintf("\"%s\":\"%s\"", pColHead.Name, cell.String())
+				}
+			case "[]int32", "[]int64", "[]float32", "[]float64":
+				{
+					strRowContent += fmt.Sprintf("\"%s\":[%s]", pColHead.Name, cell.String())
+				}
+			case "[]string":
+				{
+					strRowContent += fmt.Sprintf("\"%s\":[", pColHead.Name)
+					content := cell.String()
+					elements := strings.Split(content, ",")
+					strElement := ""
+					for _, item := range elements {
+						strElement += fmt.Sprintf("\"%s\",", item)
+					}
+					strElement = strElement[:len(strElement)-1]
+					strRowContent += strElement
+					strRowContent += "]"
+				}
+			case "[]nnkv":
+				{
+					strRowContent += fmt.Sprintf("\"%s\":[", pColHead.Name)
+					content := cell.String()
+					elements := strings.Split(content, ",")
+					strElement := ""
+					for _, item := range elements {
+						pair := strings.Split(item, ":")
+						k := pair[0]
+						v := pair[1]
+						strElement += fmt.Sprintf("{\"%s\":%s},", k, v)
+					}
+					strElement = strElement[:len(strElement)-1]
+					strRowContent += strElement
+					strRowContent += "]"
 				}
 			}
 
