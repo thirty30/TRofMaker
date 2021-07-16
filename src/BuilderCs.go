@@ -31,22 +31,55 @@ func (pOwn *sCsBuilder) init(aCmdParm []string) bool {
 	pOwn.mTypeMap["float64"] = "double"
 	pOwn.mTypeMap["string"] = "string"
 	pOwn.mTypeMap["object"] = "string"
-	pOwn.mTypeMap["[]int32"] = "[]int32"
-	pOwn.mTypeMap["[]int64"] = "[]int64"
-	pOwn.mTypeMap["[]float32"] = "[]float32"
-	pOwn.mTypeMap["[]float64"] = "[]float64"
-	pOwn.mTypeMap["[]string"] = "[]string"
-	pOwn.mTypeMap["[]nnkv"] = "[]nnkv"
+	pOwn.mTypeMap["[]int32"] = "List<int>"
+	pOwn.mTypeMap["[]int64"] = "List<long>"
+	pOwn.mTypeMap["[]float32"] = "List<float>"
+	pOwn.mTypeMap["[]float64"] = "List<double>"
+	pOwn.mTypeMap["[]string"] = "List<string>"
+	pOwn.mTypeMap["[]nnkv"] = "List<NNKV>"
 
 	return true
 }
 
 func (pOwn *sCsBuilder) build() bool {
+	//生成定义文件
+	if pOwn.buildDefineFile() == false {
+		return false
+	}
+
 	for _, v := range gTables {
 		if pOwn.doBuild(v) == false {
 			return false
 		}
 	}
+	return true
+}
+
+func (pOwn *sCsBuilder) buildDefineFile() bool {
+	os.MkdirAll(pOwn.mPath, os.ModeDir)
+	strGoName := pOwn.mPath + "RofDefine.cs"
+	pFile, err := os.Create(strGoName)
+	if err != nil {
+		logErr("can not create RofDefine.cs")
+		return false
+	}
+	defer pFile.Close()
+
+	strContent := "namespace Rof\n"
+	strContent += "{\n"
+	strContent += "public class NNKV\n"
+	strContent += "{\n"
+	strContent += "public int Key { get; private set; }\n"
+	strContent += "public double Value { get; private set; }\n"
+	strContent += "public NNKV(int aKey, double aValue)\n"
+	strContent += "{\n"
+	strContent += "this.Key = aKey;\n"
+	strContent += "this.Value = aValue;\n"
+	strContent += "}\n"
+	strContent += "}\n"
+	strContent += "}\n"
+
+	pFile.WriteString(strContent)
 	return true
 }
 
@@ -84,28 +117,98 @@ func (pOwn *sCsBuilder) doBuild(aInfo *sTableInfo) bool {
 		case "int32":
 			{
 				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 4);}\n"
-				strContent += fmt.Sprintf("%s = (int)BitConverter.ToUInt32(rData, nOffset); nOffset += 4;\n", cell.Name)
+				strContent += fmt.Sprintf("this.%s = (int)BitConverter.ToUInt32(rData, nOffset); nOffset += 4;\n", cell.Name)
 			}
 		case "int64":
 			{
 				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 8);}\n"
-				strContent += fmt.Sprintf("%s = (long)BitConverter.ToUInt64(rData, nOffset); nOffset += 8;\n", cell.Name)
+				strContent += fmt.Sprintf("this.%s = (long)BitConverter.ToUInt64(rData, nOffset); nOffset += 8;\n", cell.Name)
 			}
 		case "float32":
 			{
 				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 4);}\n"
-				strContent += fmt.Sprintf("%s = BitConverter.ToSingle(rData, nOffset); nOffset += 4;\n", cell.Name)
+				strContent += fmt.Sprintf("this.%s = BitConverter.ToSingle(rData, nOffset); nOffset += 4;\n", cell.Name)
 			}
 		case "float64":
 			{
 				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 8);}\n"
-				strContent += fmt.Sprintf("%s = BitConverter.ToDouble(rData, nOffset); nOffset += 8;\n", cell.Name)
+				strContent += fmt.Sprintf("this.%s = BitConverter.ToDouble(rData, nOffset); nOffset += 8;\n", cell.Name)
 			}
 		case "string", "object":
 			{
 				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 4);}\n"
 				strContent += fmt.Sprintf("int n%sLen = (int)BitConverter.ToUInt32(rData, nOffset); nOffset += 4;\n", cell.Name)
-				strContent += fmt.Sprintf("%s = Encoding.UTF8.GetString(rData, nOffset, n%sLen); nOffset += n%sLen;\n", cell.Name, cell.Name, cell.Name)
+				strContent += fmt.Sprintf("this.%s = Encoding.UTF8.GetString(rData, nOffset, n%sLen); nOffset += n%sLen;\n", cell.Name, cell.Name, cell.Name)
+			}
+		case "[]int32":
+			{
+				strContent += fmt.Sprintf("this.%s = new List<int>();\n", cell.Name)
+				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 4);}\n"
+				strContent += fmt.Sprintf("int n%sLen = (int)BitConverter.ToUInt32(rData, nOffset); nOffset += 4;\n", cell.Name)
+				strContent += fmt.Sprintf("for (int i = 0; i < n%sLen; i++)\n", cell.Name)
+				strContent += "{\n"
+				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 4);}\n"
+				strContent += fmt.Sprintf("this.%s.Add((int)BitConverter.ToUInt32(rData, nOffset)); nOffset += 4;\n", cell.Name)
+				strContent += "}\n"
+			}
+		case "[]int64":
+			{
+				strContent += fmt.Sprintf("this.%s = new List<long>();\n", cell.Name)
+				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 4);}\n"
+				strContent += fmt.Sprintf("int n%sLen = (int)BitConverter.ToUInt32(rData, nOffset); nOffset += 4;\n", cell.Name)
+				strContent += fmt.Sprintf("for (int i = 0; i < n%sLen; i++)\n", cell.Name)
+				strContent += "{\n"
+				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 8);}\n"
+				strContent += fmt.Sprintf("this.%s.Add((long)BitConverter.ToUInt64(rData, nOffset)); nOffset += 8;\n", cell.Name)
+				strContent += "}\n"
+			}
+		case "[]float32":
+			{
+				strContent += fmt.Sprintf("this.%s = new List<float>();\n", cell.Name)
+				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 4);}\n"
+				strContent += fmt.Sprintf("int n%sLen = (int)BitConverter.ToUInt32(rData, nOffset); nOffset += 4;\n", cell.Name)
+				strContent += fmt.Sprintf("for (int i = 0; i < n%sLen; i++)\n", cell.Name)
+				strContent += "{\n"
+				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 4);}\n"
+				strContent += fmt.Sprintf("this.%s.Add(BitConverter.ToSingle(rData, nOffset)); nOffset += 4;\n", cell.Name)
+				strContent += "}\n"
+			}
+		case "[]float64":
+			{
+				strContent += fmt.Sprintf("this.%s = new List<double>();\n", cell.Name)
+				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 4);}\n"
+				strContent += fmt.Sprintf("int n%sLen = (int)BitConverter.ToUInt32(rData, nOffset); nOffset += 4;\n", cell.Name)
+				strContent += fmt.Sprintf("for (int i = 0; i < n%sLen; i++)\n", cell.Name)
+				strContent += "{\n"
+				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 8);}\n"
+				strContent += fmt.Sprintf("this.%s.Add(BitConverter.ToDouble(rData, nOffset)); nOffset += 8;\n", cell.Name)
+				strContent += "}\n"
+			}
+		case "[]string":
+			{
+				strContent += fmt.Sprintf("this.%s = new List<string>();\n", cell.Name)
+				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 4);}\n"
+				strContent += fmt.Sprintf("int n%sLen = (int)BitConverter.ToUInt32(rData, nOffset); nOffset += 4;\n", cell.Name)
+				strContent += fmt.Sprintf("string %sTempBuf = Encoding.UTF8.GetString(rData, nOffset, n%sLen); nOffset += n%sLen;\n", cell.Name, cell.Name, cell.Name)
+				strContent += fmt.Sprintf("string[] %sElements = %sTempBuf.Split(',');\n", cell.Name, cell.Name)
+				strContent += fmt.Sprintf("foreach(string item in %sElements)\n", cell.Name)
+				strContent += "{\n"
+				strContent += fmt.Sprintf("this.%s.Add(item);\n", cell.Name)
+				strContent += "}\n"
+			}
+		case "[]nnkv":
+			{
+				strContent += fmt.Sprintf("this.%s = new List<NNKV>();\n", cell.Name)
+				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 4);}\n"
+				strContent += fmt.Sprintf("int n%sLen = (int)BitConverter.ToUInt32(rData, nOffset); nOffset += 4;\n", cell.Name)
+				strContent += fmt.Sprintf("for (int i = 0; i < n%sLen; i++)\n", cell.Name)
+				strContent += "{\n"
+				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 4);}\n"
+				strContent += "int nKey = (int)BitConverter.ToUInt32(rData, nOffset); nOffset += 4;\n"
+				strContent += "if (BitConverter.IsLittleEndian){Array.Reverse(rData, nOffset, 8);}\n"
+				strContent += "double nValue = BitConverter.ToDouble(rData, nOffset); nOffset += 8;\n"
+				strContent += fmt.Sprintf("this.%s.Add(new NNKV(nKey, nValue));\n", cell.Name)
+				strContent += "}\n"
 			}
 		}
 	}

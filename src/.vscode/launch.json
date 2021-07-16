@@ -10,7 +10,7 @@
             "request": "launch",
             "mode": "debug",
             "program": "${workspaceFolder}",
-            "args": ["-xlsx", "./xlsx", "-rof", "./rof", "-go", "./go"],
+            "args": ["-xlsx", "./xlsx", "-rof", "./rof", "-go", "./go", "-cs", "./cs"],
             "cwd": "${workspaceFolder}/bin",
         }
     ]
