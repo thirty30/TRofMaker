@@ -43,32 +43,12 @@ func (pOwn *sGoBuilder) init(aCmdParm []string) bool {
 
 func (pOwn *sGoBuilder) build() bool {
 	os.MkdirAll(pOwn.mPath, os.ModeDir)
-
-	//生成定义文件
-	if pOwn.buildDefineFile() == false {
-		return false
-	}
-
-	//生成rof内容文件
 	for _, v := range gTables {
 		if pOwn.doBuild(v) == false {
 			return false
 		}
 	}
 
-	return true
-}
-
-func (pOwn *sGoBuilder) buildDefineFile() bool {
-	strGoName := pOwn.mPath + "RofDefine.go"
-	pFile, err := os.Create(strGoName)
-	if err != nil {
-		logErr("can not create RofDefine.go")
-		return false
-	}
-	defer pFile.Close()
-	pFile.WriteString("package rof\n")
-	pFile.WriteString("type nnkv struct {\nk int32\nv float64\n}")
 	return true
 }
 

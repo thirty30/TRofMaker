@@ -8,7 +8,9 @@ func main() {
 	gCommandItems = append(gCommandItems, &sCommandItem{Cmd: "-xlsx", Builder: new(sExcelBuilder), Parms: make([]string, 0, 2), CanExecute: false})
 	gCommandItems = append(gCommandItems, &sCommandItem{Cmd: "-rof", Builder: new(sRofBuilder), Parms: make([]string, 0, 2), CanExecute: false})
 	gCommandItems = append(gCommandItems, &sCommandItem{Cmd: "-go", Builder: new(sGoBuilder), Parms: make([]string, 0, 2), CanExecute: false})
+	gCommandItems = append(gCommandItems, &sCommandItem{Cmd: "-godef", Builder: new(sGoDefineBuilder), Parms: make([]string, 0, 2), CanExecute: false})
 	gCommandItems = append(gCommandItems, &sCommandItem{Cmd: "-cs", Builder: new(sCsBuilder), Parms: make([]string, 0, 2), CanExecute: false})
+	gCommandItems = append(gCommandItems, &sCommandItem{Cmd: "-csdef", Builder: new(sCsDefineBuilder), Parms: make([]string, 0, 2), CanExecute: false})
 	gCommandItems = append(gCommandItems, &sCommandItem{Cmd: "-json", Builder: new(sJsonBuilder), Parms: make([]string, 0, 2), CanExecute: false})
 
 	gTables = make([]*sTableInfo, 0, 1024)
